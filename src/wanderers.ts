@@ -53,7 +53,7 @@ export function turnsUntilNextWanderer(allowed: string[]): number | undefined {
  */
 export function allowedWandererReady(allowed: string[]): boolean {
   return wandererSources.some(
-    (source) => allowed.includes(source.name) && source.available() && source.chance() === 1
+    (source) => allowed.includes(source.name) && source.available() && source.chance() === 1,
   );
 }
 

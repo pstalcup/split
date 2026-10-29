@@ -1,6 +1,8 @@
 [submodule "vendor/loopstar"]
 	path = vendor/loopstar
 	url = https://github.com/Kasekopf/loopstar.git
+	# patches/loopstar is applied to the working tree at build time
+	ignore = dirty
 [submodule "vendor/garbage-collector"]
 	path = vendor/garbage-collector
 	url = https://github.com/loathers/garbage-collector.git

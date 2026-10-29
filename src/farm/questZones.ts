@@ -1,5 +1,3 @@
-import { canAdventure, Item, Location } from "kolmafia";
-import { $items, $location, get, undelay } from "libram";
 import {
   addWanderFactory,
   WanderDetails,
@@ -8,7 +6,10 @@ import {
   WandererTarget,
 } from "garbo-lib";
 import { wanderer } from "garbo/garboWanderer";
+import { canAdventure, Item, Location } from "kolmafia";
+import { $items, $location, get, undelay } from "libram";
 import { hasDelay, Task } from "loopstar/engine/task";
+
 import { args, splitList } from "../args";
 import { SplitEngine } from "../engine";
 
@@ -61,7 +62,7 @@ const questZoneFactory: WandererFactory = (type, locationSkiplist, options) => {
           name: `Quest: ${zone.task.name}`,
           location: zone.location,
           zoneValue: value,
-        })
+        }),
     );
 };
 
@@ -86,7 +87,7 @@ export function routeWanderersToQuest(engine: SplitEngine): void {
   WandererManager.prototype.getChoices = function (
     this: WandererManager,
     target: WanderDetails | Location,
-    takeTurnForProfit?: boolean
+    takeTurnForProfit?: boolean,
   ) {
     const base = getChoices.call(this, target, takeTurnForProfit);
     const location = target instanceof Location ? target : this.getTarget(target).location;

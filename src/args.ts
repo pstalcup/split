@@ -90,7 +90,7 @@ export const args = Args.create(
       setting: "",
     }),
     help: Args.flag({ help: "Show this message and exit.", setting: "" }),
-  }
+  },
 );
 
 export function splitList(value: string): string[] {

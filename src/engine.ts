@@ -3,6 +3,7 @@ import { $effect, have } from "libram";
 import { ActiveTask, Engine } from "loopstar/engine/engine";
 import { Task } from "loopstar/engine/task";
 import { debug } from "loopstar/lib";
+
 import { recordTurns } from "./estimate";
 import { Admission, QuestPolicy } from "./policy";
 
@@ -57,7 +58,7 @@ export class SplitEngine extends Engine {
   pendingTasks(): Task[] {
     this.updatePlan();
     return this.tasks.filter(
-      (task) => !task.completed() && !this.policy?.isDeferred(task) && super.available(task)
+      (task) => !task.completed() && !this.policy?.isDeferred(task) && super.available(task),
     );
   }
 

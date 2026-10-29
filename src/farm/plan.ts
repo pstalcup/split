@@ -1,5 +1,6 @@
 import { myAdventures } from "kolmafia";
 import { hasDelay } from "loopstar/engine/task";
+
 import { args } from "../args";
 import { SplitEngine } from "../engine";
 import { QuestPolicy } from "../policy";
@@ -17,7 +18,7 @@ import { turnsUntilNextWanderer } from "../wanderers";
  */
 export function planFarmChunk(
   policy: QuestPolicy | undefined,
-  engine: SplitEngine | undefined
+  engine: SplitEngine | undefined,
 ): number | undefined {
   if (!args.interleave || !policy || policy.strategy !== "quick" || !engine) return undefined;
   if (myAdventures() <= 0) return undefined;

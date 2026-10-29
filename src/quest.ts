@@ -1,9 +1,10 @@
-import { myFullness, myInebriety } from "kolmafia";
 import { Args } from "grimoire-kolmafia";
+import { myFullness, myInebriety } from "kolmafia";
 import { args as loopstarArgs } from "loopstar/args";
 import { findAndMerge, NamedDeltaTask, Task } from "loopstar/engine/task";
 import { loadEngine } from "loopstar/paths/all";
 import { CasualInfo } from "loopstar/paths/casual/info";
+
 import { args } from "./args";
 import { SplitEngine } from "./engine";
 import { startTracking } from "./estimate";

@@ -5,6 +5,39 @@
  * This mirrors main() in garbo's src/index.ts (from the vendored version). When
  * updating the vendored garbo, diff its main() against this file.
  */
+import { acquire } from "garbo/acquire";
+import { stashItems, withStash, withVIPClan } from "garbo/clan";
+import { shouldAffirmationHate } from "garbo/combat";
+import { globalOptions, isQuickGear } from "garbo/config";
+import { dailySetup } from "garbo/dailies";
+import { nonOrganAdventures, runDiet } from "garbo/diet";
+import { FarmingStrategy } from "garbo/farmingStrategy";
+import { dailyFights, freeFights } from "garbo/fights";
+import { garboAverageValue } from "garbo/garboValue";
+import {
+  bestJuneCleaverOption,
+  HIGHLIGHT,
+  isFreeAndCopyable,
+  printEventLog,
+  propertyManager,
+  questStep,
+  targetingMeat,
+  valueDrops,
+} from "garbo/lib";
+import { printLog } from "garbo/log";
+import { meatMood } from "garbo/mood";
+import { potionSetup } from "garbo/potions";
+import { safeRestore } from "garbo/restore";
+import { endSession, startSession } from "garbo/session";
+import { BuffExtensionQuest, PostBuffExtensionQuest } from "garbo/tasks/buffExtension";
+import { CockroachFinish, CockroachSetup } from "garbo/tasks/cockroach/prep";
+import { EmbezzlerFightsQuest } from "garbo/tasks/embezzler";
+import { runGarboFarmQuests, runGarboQuests } from "garbo/tasks/engine";
+import { FarmQuests } from "garbo/tasks/farm";
+import { FinishUpQuest } from "garbo/tasks/finishUp";
+import { PostQuest } from "garbo/tasks/post";
+import { SetupTargetCopyQuest } from "garbo/tasks/target";
+import { estimatedGarboTurns } from "garbo/turns";
 import { Args } from "grimoire-kolmafia";
 import {
   canEquip,
@@ -53,39 +86,6 @@ import {
   setCombatFlags,
   setDefaultMaximizeOptions,
 } from "libram";
-import { stashItems, withStash, withVIPClan } from "garbo/clan";
-import { globalOptions, isQuickGear } from "garbo/config";
-import { dailySetup } from "garbo/dailies";
-import { nonOrganAdventures, runDiet } from "garbo/diet";
-import { dailyFights, freeFights } from "garbo/fights";
-import {
-  bestJuneCleaverOption,
-  HIGHLIGHT,
-  isFreeAndCopyable,
-  printEventLog,
-  propertyManager,
-  questStep,
-  targetingMeat,
-  valueDrops,
-} from "garbo/lib";
-import { printLog } from "garbo/log";
-import { meatMood } from "garbo/mood";
-import { potionSetup } from "garbo/potions";
-import { endSession, startSession } from "garbo/session";
-import { estimatedGarboTurns } from "garbo/turns";
-import { garboAverageValue } from "garbo/garboValue";
-import { safeRestore } from "garbo/restore";
-import { BuffExtensionQuest, PostBuffExtensionQuest } from "garbo/tasks/buffExtension";
-import { shouldAffirmationHate } from "garbo/combat";
-import { acquire } from "garbo/acquire";
-import { FarmingStrategy } from "garbo/farmingStrategy";
-import { runGarboFarmQuests, runGarboQuests } from "garbo/tasks/engine";
-import { CockroachFinish, CockroachSetup } from "garbo/tasks/cockroach/prep";
-import { EmbezzlerFightsQuest } from "garbo/tasks/embezzler";
-import { FarmQuests } from "garbo/tasks/farm";
-import { FinishUpQuest } from "garbo/tasks/finishUp";
-import { PostQuest } from "garbo/tasks/post";
-import { SetupTargetCopyQuest } from "garbo/tasks/target";
 
 // Max price for tickets. You should rethink whether Barf is the best place if they're this expensive.
 const TICKET_MAX_PRICE = 500000;
@@ -102,7 +102,7 @@ function defaultTarget() {
   if ($skills`Curse of Weaksauce, Saucegeyser`.every((s) => have(s))) {
     return maxBy(
       $monsters.all().filter((m) => m.wishable && isFreeAndCopyable(m)),
-      valueDrops
+      valueDrops,
     );
   }
   return $monster`Knob Goblin Elite Guard Captain`;
@@ -127,7 +127,7 @@ export function loadGarboOptions(argString: string, ascend: boolean): void {
 
   if (
     !$classes`Seal Clubber, Turtle Tamer, Pastamancer, Sauceror, Disco Bandit, Accordion Thief, Cow Puncher, Snake Oiler, Beanslinger, Pig Skinner, Cheese Wizard, Jazz Agent`.includes(
-      myClass()
+      myClass(),
     )
   ) {
     throw "Garbo does not support this class.";
@@ -162,7 +162,7 @@ export class GarboSession {
     }
     if (stashItems.length > 0) {
       throw `Items from a previous garbo run are still out of the clan stash (${stashItems.join(
-        ", "
+        ", ",
       )}). Run "garbo returnstash" first.`;
     }
     cliExecute("mallcheck.js");
@@ -220,11 +220,11 @@ export class GarboSession {
     const preventEquip = $items`broken champagne bottle, Spooky Putty snake, Spooky Putty mitre, Spooky Putty leotard, Spooky Putty ball, papier-mitre, papier-mâchéte, papier-mâchine gun, papier-masque, papier-mâchuridars, smoke ball, stinky fannypack, dice-shaped backpack, Amulet of Perpetual Darkness`;
     if (isQuickGear()) {
       preventEquip.push(
-        ...$items`Brimstone Bludgeon, Brimstone Bunker, Brimstone Brooch, Brimstone Bracelet, Brimstone Boxers, Brimstone Beret`
+        ...$items`Brimstone Bludgeon, Brimstone Bunker, Brimstone Brooch, Brimstone Bracelet, Brimstone Boxers, Brimstone Beret`,
       );
     }
     preventEquip.push(
-      ...$items`devilbone rosary, devilbone greaves, devilbone corset, angelbone totem, angelbone chopsticks, angelbone dice`
+      ...$items`devilbone rosary, devilbone greaves, devilbone corset, angelbone totem, angelbone chopsticks, angelbone dice`,
     );
     setDefaultMaximizeOptions({
       preventEquip: preventEquip,
@@ -276,7 +276,7 @@ export class GarboSession {
 
   private harvestGarden(): void {
     this.startingGarden = GARDENS.find((garden) =>
-      Object.getOwnPropertyNames(getCampground()).includes(garden.name)
+      Object.getOwnPropertyNames(getCampground()).includes(garden.name),
     );
     const garden = this.startingGarden;
     if (
@@ -390,8 +390,8 @@ export class GarboSession {
     if (JuneCleaver.have()) {
       propertyManager.setChoices(
         Object.fromEntries(
-          JuneCleaver.choices.map((choice) => [choice, bestJuneCleaverOption(choice)])
-        )
+          JuneCleaver.choices.map((choice) => [choice, bestJuneCleaverOption(choice)]),
+        ),
       );
     }
     propertyManager.set({ shadowLabyrinthGoal: "effects" });
@@ -430,7 +430,7 @@ export class GarboSession {
       acquire(
         1,
         $item`Daily Affirmation: Keep Free Hate in your Heart`,
-        globalOptions.prefs.valueOfPvPFight * 3 * 1.1
+        globalOptions.prefs.valueOfPvPFight * 3 * 1.1,
       );
     }
   }

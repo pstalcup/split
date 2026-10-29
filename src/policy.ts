@@ -1,7 +1,8 @@
 import { Monster } from "kolmafia";
 import { $monsters, get, set, undelay } from "libram";
-import { hasDelay, Task } from "loopstar/engine/task";
 import { ActiveTask } from "loopstar/engine/engine";
+import { hasDelay, Task } from "loopstar/engine/task";
+
 import { args, matchesTask, splitList } from "./args";
 import { parseQuickResources, quickResourcesFor } from "./quick";
 import { allowedWandererReady, farmingCopyDue } from "./wanderers";
@@ -106,7 +107,7 @@ export class QuestPolicy {
  */
 export function getQuestCopies(tasks: Task[]): Set<Monster> {
   const result = new Set<Monster>(
-    $monsters`sausage goblin, giant swarm of ghuol whelps, pygmy bowler, dairy goat, mountain man`
+    $monsters`sausage goblin, giant swarm of ghuol whelps, pygmy bowler, dairy goat, mountain man`,
   );
   for (const task of tasks) {
     const request = undelay(task.resources);

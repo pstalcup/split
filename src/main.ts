@@ -1,13 +1,14 @@
-import { inCasual, myAdventures, myPath, print } from "kolmafia";
 import { Args } from "grimoire-kolmafia";
+import { inCasual, myAdventures, myPath, print } from "kolmafia";
 import { get, sinceKolmafiaRevision, undelay } from "libram";
 import { allocateResources } from "loopstar/engine/allocation";
 import { getTaggedName, merge } from "loopstar/engine/task";
+
 import { args } from "./args";
+import { estimateTasks, markRunFinished, questTurnsReserve, readHistory } from "./estimate";
 import { canFarm, GarboSession, loadGarboOptions } from "./farm/garbo";
 import { planFarmChunk } from "./farm/plan";
 import { questZones, routeWanderersToQuest } from "./farm/questZones";
-import { estimateTasks, markRunFinished, questTurnsReserve, readHistory } from "./estimate";
 import { QuestPolicy, Strategy } from "./policy";
 import { loadQuest, Quest } from "./quest";
 import { DayState, getDayState } from "./state";
@@ -136,9 +137,9 @@ function finishQuest(quest: Quest): void {
   if (currentState(quest).mode !== "due") return;
   print(
     `Finishing the quest: ${myAdventures()} adventures left, about ${questTurnsReserve(
-      quest.engine.tasks
+      quest.engine.tasks,
     )} reserved for it.`,
-    "purple"
+    "purple",
   );
   runQuestPhase(quest, "finish");
   if (actionsExhausted(quest)) throw "Stopped by the actions limit while finishing the quest.";
@@ -203,15 +204,15 @@ function printQuestPlan(quest: Quest, state: DayState): void {
     history.runs > 0 ? `from ${history.runs} previous run(s)` : "no history yet; rough default";
   print(
     `Estimated quest turns left: ${estimated.toFixed(0)} (${basis}); reserving ${questTurnsReserve(
-      engine.tasks
-    )}.`
+      engine.tasks,
+    )}.`,
   );
   if (state.mode === "due") {
     print(
       `Adventures that can be farmed before finishing the quest: ${Math.max(
         0,
-        turnsUntilDeadline(quest)
-      )} (before garbo's diet).`
+        turnsUntilDeadline(quest),
+      )} (before garbo's diet).`,
     );
   }
   const estimateByTask = new Map(estimates.map((estimate) => [estimate.task.name, estimate.turns]));

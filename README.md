@@ -62,7 +62,7 @@ fights garbo's copies itself, since they need garbo's outfit, and the quest neve
 while one of them is due.
 
 This uses a small garbo-lib addition, `addWanderFactory()`, kept in
-`patches/garbage-collector/` until it is upstreamed. `npm run build` and `npm run check` apply it.
+`patches/garbage-collector/` until it is upstreamed. `yarn run build` and `yarn run check` apply it.
 
 ### Interleaving
 
@@ -109,38 +109,73 @@ Both scripts are vendored as git submodules and imported directly:
 | `src/farm/questZones.ts` | Offers quest delay zones to garbo-lib's wanderer planner           |
 | `src/patches.ts`         | Keeps loopstar from using garbo's copies as delay burners          |
 
-## Setup
+## Installation
+
+In the KoLmafia CLI:
+
+```
+git checkout pstalcup/split release
+```
+
+The `release` branch is built from `main` by GitHub Actions on every push.
+
+garbo must also be installed (`git checkout loathers/garbage-collector release`): split uses its
+data files (`garbo_item_lists.json`), its choice script (`garbo_choice.js`) and its dependencies
+(e.g. `mallcheck.js`). Keep the installed garbo on the same version as the vendored one.
+
+## Development
+
+This project follows the
+[loathers TypeScript script setup](https://loathers.net/scripting/ts-script-setup/) (the
+`create-kolmafia-script` template): Yarn via corepack, rollup, ESLint and Prettier.
 
 Both upstream scripts are git submodules under `vendor/`, pinned to the versions split was built
-against. Clone with submodules:
+against. Clone with submodules, then install dependencies:
 
 ```bash
 git clone --recurse-submodules https://github.com/pstalcup/split.git
 ```
 
-(or run `git submodule update --init` in an existing clone). Then:
-
 ```bash
-npm install
+yarn install
 ```
 
+(In an existing clone, run `git submodule update --init` first.)
+
+Build the scripts into `dist/scripts/split/`:
+
 ```bash
-npm run build
+yarn run build
 ```
 
-Copy (or symlink) `dist/KoLmafia/scripts/split/` into your KoLmafia `scripts` directory.
+Symlink the built scripts into your KoLmafia directory (pass the path to your KoLmafia folder on
+Windows, or if you moved it):
 
-garbo must also be installed normally (`git checkout loathers/garbage-collector release`): split
-uses its data files (`garbo_item_lists.json`), its choice script (`garbo_choice.js`) and its
-dependencies (e.g. `mallcheck.js`). Keep the installed garbo and the vendored one on the same
-version.
+```bash
+yarn run install-mafia
+```
+
+Rebuild automatically while developing:
+
+```bash
+yarn run watch
+```
+
+Other commands: `yarn run check` typechecks everything (including the vendored sources),
+`yarn run lint` runs ESLint and Prettier, and `yarn run format` fixes what they can.
+
+### Vendored sources
+
+`build`, `watch` and `check` first apply `patches/<submodule>/*.patch` to the submodules' working
+trees (already-applied patches are skipped). The patches are small changes intended for upstream:
+
+- `patches/garbage-collector`: adds `addWanderFactory()` to garbo-lib (see above).
+- `patches/loopstar`: fixes the `EngineOptions` type arguments in loopstar's engines, so that the
+  project typechecks.
 
 To update a vendored script, check out the new commit inside its submodule (e.g.
 `git -C vendor/garbage-collector checkout <commit>`), rebuild, and commit the submodule change. For
 garbo, also port any changes in its `main()` to `src/farm/garbo.ts`.
-
-`npm run check` typechecks `src/`. Upstream loopstar has a few type errors of its own; those are
-reported but do not fail the check.
 
 ## Usage
 

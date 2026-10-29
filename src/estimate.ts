@@ -1,6 +1,7 @@
 import { bufferToFile, fileToBuffer, Location, myAscensions, myName } from "kolmafia";
 import { get, set, undelay } from "libram";
 import { hasDelay, Task } from "loopstar/engine/task";
+
 import { args } from "./args";
 
 /**
@@ -26,7 +27,7 @@ function readTally(): RunTally {
   try {
     const tally = JSON.parse(get(CURRENT_RUN_PREF, "")) as RunTally;
     if (typeof tally.ascension === "number" && tally.turns) return tally;
-  } catch (e) {
+  } catch {
     // fall through to a fresh tally
   }
   return { ascension: myAscensions(), finished: false, turns: {} };
@@ -40,7 +41,7 @@ export function readHistory(): History {
   try {
     const history = JSON.parse(fileToBuffer(historyFile())) as History;
     if (typeof history.runs === "number" && history.turns) return history;
-  } catch (e) {
+  } catch {
     // no history yet
   }
   return { runs: 0, turns: {} };
