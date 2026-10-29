@@ -66,8 +66,8 @@ Outside of farming, loopstar uses its own free wanderers in quest zones as usual
 fights garbo's copies itself, since they need garbo's outfit, and the quest never spends a turn
 while one of them is due.
 
-This uses a small garbo-lib addition, `addWanderFactory()`, kept in
-`patches/garbage-collector/` until it is upstreamed. `yarn run build` and `yarn run check` apply it.
+This uses garbo-lib's `addWanderFactory()`
+([loathers/garbage-collector#2845](https://github.com/loathers/garbage-collector/pull/2845)).
 
 ### Interleaving
 
@@ -174,7 +174,6 @@ Other commands: `yarn run check` typechecks everything (including the vendored s
 `build`, `watch` and `check` first apply `patches/<submodule>/*.patch` to the submodules' working
 trees (already-applied patches are skipped). The patches are small changes intended for upstream:
 
-- `patches/garbage-collector`: adds `addWanderFactory()` to garbo-lib (see above).
 - `patches/loopstar`: fixes the `EngineOptions` type arguments in loopstar's engines, so that the
   project typechecks.
 

@@ -6,5 +6,3 @@
 [submodule "vendor/garbage-collector"]
 	path = vendor/garbage-collector
 	url = https://github.com/loathers/garbage-collector.git
-	# patches/garbage-collector is applied to the working tree at build time
-	ignore = dirty
