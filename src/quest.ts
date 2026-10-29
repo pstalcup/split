@@ -1,5 +1,6 @@
 import { Args } from "grimoire-kolmafia";
-import { myFullness, myInebriety } from "kolmafia";
+import { myDaycount, myFullness, myInebriety, myLevel } from "kolmafia";
+import { $item, have } from "libram";
 import { args as loopstarArgs } from "loopstar/args";
 import { findAndMerge, NamedDeltaTask, Task } from "loopstar/engine/task";
 import { loadEngine } from "loopstar/paths/all";
@@ -12,7 +13,18 @@ import { patchLoopstarResources } from "./patches";
 import { getQuestCopies } from "./policy";
 
 function splitDeltas(): NamedDeltaTask[] {
-  const deltas: NamedDeltaTask[] = [];
+  const deltas: NamedDeltaTask[] = [
+    // Loopstar stops using mouthwash at level 12, which starts every council
+    // quest. On the finish day, use what is left to reach level 13 for the tower.
+    {
+      name: "Leveling/Mouthwash",
+      replace: {
+        completed: () =>
+          !have($item`Mmm-brr! brand mouthwash`) ||
+          myLevel() >= (myDaycount() >= args.finishday ? 13 : 12),
+      },
+    },
+  ];
   if (args.day2diet) {
     // Loopstar only eats on day 1. When the quest spills into a later day,
     // its turns need a (partial) diet as well; garbo fills the rest afterwards.

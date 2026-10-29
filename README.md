@@ -34,6 +34,11 @@ each quest task on whichever day the resources make it quick:
   Farming stops when it reaches that reserve. The quest is then finished at whatever turn cost,
   and garbo farms whatever is left.
 
+- **Level 13** is needed to start the tower, and loopstar has no task for the last level (in a
+  one-day run, quest fights provide it). On the finish day, split uses any leftover Mmm-brr!
+  mouthwash to reach 13. If that isn't enough and the tower is all that's left, it farms in small
+  garbo chunks, which give the experience while still making meat, until level 13.
+
 ### Estimating the quest turns left
 
 Every turn a quest task spends is recorded for the current run. When a run is finished, its

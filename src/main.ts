@@ -1,5 +1,5 @@
 import { Args } from "grimoire-kolmafia";
-import { inCasual, myAdventures, myPath, print } from "kolmafia";
+import { inCasual, myAdventures, myLevel, myPath, print } from "kolmafia";
 import { get, sinceKolmafiaRevision, undelay } from "libram";
 import { allocateResources } from "loopstar/engine/allocation";
 import { getTaggedName, merge } from "loopstar/engine/task";
@@ -76,14 +76,14 @@ function runDay(quest: Quest | undefined): void {
   session.run(() => {
     session.diet();
     // Check before garbo's copy target fights spend turns
-    if (quest && deadlineReached(quest)) finishQuest(quest);
+    if (quest && deadlineReached(quest)) finishQuest(quest, session);
     session.dailies();
 
     for (let round = 0; round < MAX_ROUNDS; round++) {
-      if (quest && deadlineReached(quest)) finishQuest(quest);
+      if (quest && deadlineReached(quest)) finishQuest(quest, session);
       const state = currentState(quest);
       const lastRound = round === MAX_ROUNDS - 1;
-      if (quest && lastRound && state.mode === "due") finishQuest(quest);
+      if (quest && lastRound && state.mode === "due") finishQuest(quest, session);
 
       const policy =
         quest && state.mode !== "complete"
@@ -107,7 +107,7 @@ function runDay(quest: Quest | undefined): void {
 
     // Out of rounds or stalled: the quest still has to be done today
     if (quest && currentState(quest).mode === "due") {
-      finishQuest(quest);
+      finishQuest(quest, session);
       session.farm(undefined);
     }
   });
@@ -130,10 +130,29 @@ function deadlineReached(quest: Quest): boolean {
   return currentState(quest).mode === "due" && turnsUntilDeadline(quest) <= 0;
 }
 
+// Turns to farm between checks while farming for the experience to reach level 13
+const LEVELING_CHUNK = 5;
+
 /**
- * Run every remaining quest task, whatever it costs.
+ * True if the quest is only waiting on level 13 to start the tower. Loopstar
+ * has no task for the last level; in a one-day run quest fights provide it,
+ * but split gives most fights to garbo.
  */
-function finishQuest(quest: Quest): void {
+function waitingOnLevel13(quest: Quest): boolean {
+  if (myLevel() >= 13) return false;
+  const tasks = quest.engine.tasks;
+  const towerStart = tasks.find((task) => task.name === "Tower/Start");
+  if (!towerStart || towerStart.completed()) return false;
+  return (towerStart.after ?? []).every(
+    (name) => tasks.find((task) => task.name === name)?.completed() ?? true,
+  );
+}
+
+/**
+ * Run every remaining quest task, whatever it costs. While farming, any
+ * experience still needed for level 13 is gained by farming.
+ */
+function finishQuest(quest: Quest, session?: GarboSession): void {
   if (currentState(quest).mode !== "due") return;
   print(
     `Finishing the quest: ${myAdventures()} adventures left, about ${questTurnsReserve(
@@ -142,6 +161,12 @@ function finishQuest(quest: Quest): void {
     "purple",
   );
   runQuestPhase(quest, "finish");
+  while (session && currentState(quest).mode === "due" && waitingOnLevel13(quest)) {
+    print("Farming for the experience to reach level 13, which the tower needs.", "purple");
+    const spent = session.farm(LEVELING_CHUNK);
+    runQuestPhase(quest, "finish");
+    if (spent === 0 || myAdventures() <= 0) break;
+  }
   if (actionsExhausted(quest)) throw "Stopped by the actions limit while finishing the quest.";
   if (currentState(quest).mode === "due") failUnfinishedQuest(quest);
 }
