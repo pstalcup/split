@@ -6,6 +6,7 @@ import { getTaggedName, merge } from "loopstar/engine/task";
 import { args } from "./args";
 import { canFarm, GarboSession, loadGarboOptions } from "./farm/garbo";
 import { planFarmChunk } from "./farm/plan";
+import { questZones, routeWanderersToQuest } from "./farm/questZones";
 import { QuestPolicy } from "./policy";
 import { loadQuest, Quest } from "./quest";
 import { DayState, getDayState } from "./state";
@@ -63,6 +64,9 @@ function runDay(quest: Quest | undefined): void {
 
   const farmState = currentState(quest);
   loadGarboOptions(args.garboargs, farmState.ascendAfterFarming);
+  if (quest && farmState.mode !== "complete" && args.routewanderers) {
+    routeWanderersToQuest(quest.engine);
+  }
   const session = new GarboSession();
   session.run(() => {
     session.setup();
@@ -136,6 +140,11 @@ function printQuestPlan(quest: Quest, state: DayState): void {
   if (state.mode === "flexible") {
     const budget = args.questturns < 0 ? "unlimited" : `${policy.budgetRemaining()}`;
     print(`Quest turn budget remaining today: ${budget}`);
+  }
+  if (args.routewanderers) {
+    const zones = questZones(quest.engine);
+    const zoneText = zones.map((zone) => `${zone.location} (${zone.delay})`).join(", ");
+    print(`Quest zones garbo may route wanderers into: ${zoneText || "none"}`);
   }
 
   const engine = quest.engine;

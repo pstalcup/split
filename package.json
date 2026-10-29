@@ -5,8 +5,11 @@
   "private": true,
   "license": "ISC",
   "scripts": {
+    "patch-vendor": "node scripts/apply-patches.mjs",
+    "prebuild": "node scripts/apply-patches.mjs",
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
+    "precheck": "node scripts/apply-patches.mjs",
     "check": "node scripts/check.mjs",
     "lint": "prettier --check src *.mjs *.json *.md"
   },

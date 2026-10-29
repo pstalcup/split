@@ -37,8 +37,20 @@ export const args = Args.create(
       help: "Comma-separated free wanderer sources that may be routed into quest delay zones before the finish day.",
       default: "Kramco,Voted,Cursed Magnifying Glass",
     }),
+    routewanderers: Args.boolean({
+      help: "While farming, let garbo send its wanderers, copies and backups into quest zones with delay remaining, when that is worth more than garbo's usual zones. The fights stay garbo's (outfit, familiar, combat).",
+      default: true,
+    }),
+    routetypes: Args.string({
+      help: "Comma-separated garbo-lib fight types that may be routed into quest zones (wanderer, backup, freefight, ...).",
+      default: "wanderer,backup",
+    }),
+    routevalue: Args.number({
+      help: "Value of burning one turn of quest delay, as a multiple of valueOfAdventure, when garbo-lib compares quest zones to its usual zones.",
+      default: 1,
+    }),
     interleave: Args.boolean({
-      help: "Pause farming when a free wanderer or a free run is about to become available, so that the quest can use it.",
+      help: "Pause farming when a free run (or, without routewanderers, a free wanderer) is about to become available, so that the quest can use it.",
       default: true,
     }),
     minchunk: Args.number({
