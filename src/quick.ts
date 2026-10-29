@@ -1,10 +1,10 @@
 import { haveEffect } from "kolmafia";
 import { $effect, $item, get, have } from "libram";
-import { Task } from "loopstar/engine/task";
 import { globalStateCache } from "loopstar/engine/state";
-import { getRunawaySources } from "loopstar/resources/runaway";
-import { freekillSources } from "loopstar/resources/freekill";
+import { Task } from "loopstar/engine/task";
 import { unusedBanishes } from "loopstar/resources/banish";
+import { freekillSources } from "loopstar/resources/freekill";
+import { getRunawaySources } from "loopstar/resources/runaway";
 import { forceItemSources, yellowRayPossible } from "loopstar/resources/yellowray";
 import { warCleared } from "loopstar/tasks/level12";
 
@@ -41,7 +41,7 @@ function canRunAway(task: Task): boolean {
 
 function freeRunAvailable(task: Task): boolean {
   return getRunawaySources().some(
-    (source) => source.available() && source.chance() === 1 && !source.blocked?.includes(task.name)
+    (source) => source.available() && source.chance() === 1 && !source.blocked?.includes(task.name),
   );
 }
 

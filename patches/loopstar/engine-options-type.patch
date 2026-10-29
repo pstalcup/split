@@ -1,0 +1,52 @@
+diff --git a/src/engine/engine.ts b/src/engine/engine.ts
+index 2e9a0b8..89de5a2 100644
+--- a/src/engine/engine.ts
++++ b/src/engine/engine.ts
+@@ -115,7 +115,7 @@ export type ActiveTask = Task & {
+ };
+ 
+ export class Engine extends BaseEngine<CombatActions, ActiveTask> {
+-  constructor(tasks: Task[], options: EngineOptions<CombatActions, ActiveTask> = {}) {
++  constructor(tasks: Task[], options: EngineOptions<CombatActions, void, ActiveTask> = {}) {
+     if (!options.combat_defaults) options.combat_defaults = new MyActionDefaults();
+     super(tasks, options);
+   }
+diff --git a/src/paths/boris/engine.ts b/src/paths/boris/engine.ts
+index 5421915..a7a582c 100644
+--- a/src/paths/boris/engine.ts
++++ b/src/paths/boris/engine.ts
+@@ -21,7 +21,7 @@ import { getModifiersFrom } from "../../engine/outfit";
+ import { args } from "../../args";
+ 
+ export class BorisEngine extends Engine {
+-  constructor(tasks: Task[], options: EngineOptions<CombatActions, ActiveTask> = {}) {
++  constructor(tasks: Task[], options: EngineOptions<CombatActions, void, ActiveTask> = {}) {
+     if (!options.combat_defaults) options.combat_defaults = new BorisActionDefaults();
+     super(tasks, options);
+   }
+diff --git a/src/paths/gyou/engine.ts b/src/paths/gyou/engine.ts
+index dd1813f..37a8008 100644
+--- a/src/paths/gyou/engine.ts
++++ b/src/paths/gyou/engine.ts
+@@ -48,7 +48,7 @@ import { getRunawaySources } from "../../resources/runaway";
+ import { ChainSource } from "../../resources/wanderer";
+ 
+ export class GyouEngine extends Engine {
+-  constructor(tasks: Task[], options: EngineOptions<CombatActions, ActiveTask> = {}) {
++  constructor(tasks: Task[], options: EngineOptions<CombatActions, void, ActiveTask> = {}) {
+     if (!options.combat_defaults) options.combat_defaults = new GyouActionDefaults();
+     super(tasks, options);
+   }
+diff --git a/src/paths/sea/engine.ts b/src/paths/sea/engine.ts
+index ec84dd9..7432822 100644
+--- a/src/paths/sea/engine.ts
++++ b/src/paths/sea/engine.ts
+@@ -42,7 +42,7 @@ import { forceNCPossible, forceNCSources } from "../../resources/forcenc";
+ import { ROUTE_WAIT_TO_NCFORCE } from "../../route";
+ 
+ export class TheSeaEngine extends Engine {
+-  constructor(tasks: Task[], options: EngineOptions<CombatActions, ActiveTask> = {}) {
++  constructor(tasks: Task[], options: EngineOptions<CombatActions, void, ActiveTask> = {}) {
+     if (!options.combat_defaults) {
+       options.combat_defaults = new SeaActionDefaults();
+     }

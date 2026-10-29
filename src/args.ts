@@ -2,7 +2,7 @@ import { Args } from "grimoire-kolmafia";
 
 export const args = Args.create(
   "split",
-  'Runs a casual run over two days, scheduling loopstar questing and garbo farming together.\n\nBefore the finish day, quest tasks run only when they are quick: when daily resources like free runs, free kills, yellow rays, NC forces or free wanderers are available for them. Everything else is farmed with garbo, and quest tasks are picked up again as resources recharge during farming. On the finish day the quest runs to completion first, then garbo farms the remaining turns.\n\nRun "split status" to see what the script would do right now.',
+  'Runs a casual run over two days, scheduling loopstar questing and garbo farming together.\n\nBefore the finish day, quest tasks run only when they are quick: when daily resources like free runs, free kills, yellow rays, NC forces or free wanderers are available for them. Everything else is farmed with garbo, and quest tasks are picked up again as resources recharge during farming. The finish day works the same way until the adventures left are only enough to finish the quest (estimated from the turns each task took in your previous runs); then the quest is finished whatever it costs, and garbo farms what is left.\n\nRun "split status" to see what the script would do right now.',
   {
     status: Args.flag({
       help: "Print the current day plan and which quest tasks are allowed, then exit.",
@@ -11,6 +11,14 @@ export const args = Args.create(
     finishday: Args.number({
       help: "Day of the run by which the quest must be completed. Earlier days only make quick quest progress.",
       default: 2,
+    }),
+    finishmargin: Args.number({
+      help: "On the finish day, stop farming to finish the quest once the adventures left are at most (estimated quest turns left) * finishmargin + finishbuffer.",
+      default: 1.25,
+    }),
+    finishbuffer: Args.number({
+      help: "Extra turns to keep in reserve for finishing the quest on the finish day (see finishmargin).",
+      default: 15,
     }),
     questturns: Args.number({
       help: "Number of turns that quest tasks without quick resources may spend on each day before the finish day. Use -1 for no limit.",
@@ -37,8 +45,20 @@ export const args = Args.create(
       help: "Comma-separated free wanderer sources that may be routed into quest delay zones before the finish day.",
       default: "Kramco,Voted,Cursed Magnifying Glass",
     }),
+    routewanderers: Args.boolean({
+      help: "While farming, let garbo send its wanderers, copies and backups into quest zones with delay remaining, when that is worth more than garbo's usual zones. The fights stay garbo's (outfit, familiar, combat).",
+      default: true,
+    }),
+    routetypes: Args.string({
+      help: "Comma-separated garbo-lib fight types that may be routed into quest zones (wanderer, backup, freefight, ...).",
+      default: "wanderer,backup",
+    }),
+    routevalue: Args.number({
+      help: "Value of burning one turn of quest delay, as a multiple of valueOfAdventure, when garbo-lib compares quest zones to its usual zones.",
+      default: 1,
+    }),
     interleave: Args.boolean({
-      help: "Pause farming when a free wanderer or a free run is about to become available, so that the quest can use it.",
+      help: "Pause farming when a free run (or, without routewanderers, a free wanderer) is about to become available, so that the quest can use it.",
       default: true,
     }),
     minchunk: Args.number({
@@ -70,7 +90,7 @@ export const args = Args.create(
       setting: "",
     }),
     help: Args.flag({ help: "Show this message and exit.", setting: "" }),
-  }
+  },
 );
 
 export function splitList(value: string): string[] {

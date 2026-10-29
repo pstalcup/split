@@ -1,6 +1,7 @@
 import { Monster } from "kolmafia";
 import { get } from "libram";
 import { wandererSources } from "loopstar/resources/wanderer";
+
 import { isFarmingCopy } from "./wanderers";
 
 let patched = false;

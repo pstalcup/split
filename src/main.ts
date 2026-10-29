@@ -1,12 +1,15 @@
-import { inCasual, myAdventures, myPath, print } from "kolmafia";
 import { Args } from "grimoire-kolmafia";
+import { inCasual, myAdventures, myLevel, myPath, print } from "kolmafia";
 import { get, sinceKolmafiaRevision, undelay } from "libram";
 import { allocateResources } from "loopstar/engine/allocation";
 import { getTaggedName, merge } from "loopstar/engine/task";
+
 import { args } from "./args";
+import { estimateTasks, markRunFinished, questTurnsReserve, readHistory } from "./estimate";
 import { canFarm, GarboSession, loadGarboOptions } from "./farm/garbo";
 import { planFarmChunk } from "./farm/plan";
-import { QuestPolicy } from "./policy";
+import { questZones, routeWanderersToQuest } from "./farm/questZones";
+import { QuestPolicy, Strategy } from "./policy";
 import { loadQuest, Quest } from "./quest";
 import { DayState, getDayState } from "./state";
 
@@ -42,46 +45,70 @@ function currentState(quest: Quest | undefined): DayState {
 }
 
 function runDay(quest: Quest | undefined): void {
-  // Quest first. On the finish day this completes the quest. Earlier, it makes
-  // whatever quick progress the day's fresh resources allow, before garbo's
-  // free fights compete for them.
+  const farming = args.farm && canFarm();
+  if (args.farm && !farming) {
+    print("You are overdrunk without a usable Drunkula's wineglass; not farming.", "red");
+  }
+
+  // Quest first, so it gets first use of the day's fresh resources before
+  // garbo's free fights compete for them. Without farming, there is nothing
+  // to wait for on the finish day.
   const questState = currentState(quest);
   if (quest && questState.mode !== "complete") {
-    runQuestPhase(quest, new QuestPolicy(questState.mode, quest.questCopies));
+    if (questState.mode === "due" && !farming) {
+      finishQuest(quest);
+    } else {
+      runQuestPhase(quest, "quick");
+    }
     if (actionsExhausted(quest)) {
       print(`Stopping after ${quest.engine.actionsTaken} quest actions.`, "purple");
       return;
     }
-    if (currentState(quest).mode === "due") failUnfinishedQuest(quest);
   }
-
-  if (!args.farm) return;
-  if (!canFarm()) {
-    print("You are overdrunk without a usable Drunkula's wineglass; not farming.", "red");
-    return;
-  }
+  if (!farming) return;
 
   const farmState = currentState(quest);
   loadGarboOptions(args.garboargs, farmState.ascendAfterFarming);
+  if (quest && farmState.mode !== "complete" && args.routewanderers) {
+    routeWanderersToQuest(quest.engine);
+  }
   const session = new GarboSession();
   session.run(() => {
-    session.setup();
+    session.diet();
+    // Check before garbo's copy target fights spend turns
+    if (quest && deadlineReached(quest)) finishQuest(quest, session);
+    session.dailies();
+
     for (let round = 0; round < MAX_ROUNDS; round++) {
+      if (quest && deadlineReached(quest)) finishQuest(quest, session);
       const state = currentState(quest);
+      const lastRound = round === MAX_ROUNDS - 1;
+      if (quest && lastRound && state.mode === "due") finishQuest(quest, session);
+
       const policy =
-        quest && state.mode === "flexible"
-          ? new QuestPolicy(state.mode, quest.questCopies)
+        quest && state.mode !== "complete"
+          ? new QuestPolicy("quick", quest.questCopies)
           : undefined;
-      // On the last round, farm everything that is left
-      const chunk = round < MAX_ROUNDS - 1 ? planFarmChunk(policy, quest?.engine) : undefined;
+      let chunk = lastRound ? undefined : planFarmChunk(policy, quest?.engine);
+      if (quest && state.mode === "due") {
+        // Farm no further than the point where the quest has to be finished
+        const slack = Math.max(1, turnsUntilDeadline(quest));
+        chunk = chunk === undefined ? slack : Math.min(chunk, slack);
+      }
       const spent = session.farm(chunk);
       if (chunk === undefined || myAdventures() <= 0) break;
 
       // Give the resource that just became ready to the quest
       if (!quest || !policy || actionsExhausted(quest)) continue;
       const actionsBefore = quest.engine.actionsTaken;
-      runQuestPhase(quest, policy);
+      runQuestPhase(quest, "quick");
       if (spent === 0 && quest.engine.actionsTaken === actionsBefore) break;
+    }
+
+    // Out of rounds or stalled: the quest still has to be done today
+    if (quest && currentState(quest).mode === "due") {
+      finishQuest(quest, session);
+      session.farm(undefined);
     }
   });
 
@@ -90,16 +117,71 @@ function runDay(quest: Quest | undefined): void {
   else print(`Day ${finalState.day} done; the quest continues tomorrow.`, "purple");
 }
 
-function runQuestPhase(quest: Quest, policy: QuestPolicy): void {
+/**
+ * Adventures that can still be farmed on the finish day before the rest must
+ * go to the quest. Not limited on earlier days.
+ */
+function turnsUntilDeadline(quest: Quest): number {
+  quest.engine.updatePlan();
+  return myAdventures() - questTurnsReserve(quest.engine.tasks);
+}
+
+function deadlineReached(quest: Quest): boolean {
+  return currentState(quest).mode === "due" && turnsUntilDeadline(quest) <= 0;
+}
+
+// Turns to farm between checks while farming for the experience to reach level 13
+const LEVELING_CHUNK = 5;
+
+/**
+ * True if the quest is only waiting on level 13 to start the tower. Loopstar
+ * has no task for the last level; in a one-day run quest fights provide it,
+ * but split gives most fights to garbo.
+ */
+function waitingOnLevel13(quest: Quest): boolean {
+  if (myLevel() >= 13) return false;
+  const tasks = quest.engine.tasks;
+  const towerStart = tasks.find((task) => task.name === "Tower/Start");
+  if (!towerStart || towerStart.completed()) return false;
+  return (towerStart.after ?? []).every(
+    (name) => tasks.find((task) => task.name === name)?.completed() ?? true,
+  );
+}
+
+/**
+ * Run every remaining quest task, whatever it costs. While farming, any
+ * experience still needed for level 13 is gained by farming.
+ */
+function finishQuest(quest: Quest, session?: GarboSession): void {
+  if (currentState(quest).mode !== "due") return;
+  print(
+    `Finishing the quest: ${myAdventures()} adventures left, about ${questTurnsReserve(
+      quest.engine.tasks,
+    )} reserved for it.`,
+    "purple",
+  );
+  runQuestPhase(quest, "finish");
+  while (session && currentState(quest).mode === "due" && waitingOnLevel13(quest)) {
+    print("Farming for the experience to reach level 13, which the tower needs.", "purple");
+    const spent = session.farm(LEVELING_CHUNK);
+    runQuestPhase(quest, "finish");
+    if (spent === 0 || myAdventures() <= 0) break;
+  }
+  if (actionsExhausted(quest)) throw "Stopped by the actions limit while finishing the quest.";
+  if (currentState(quest).mode === "due") failUnfinishedQuest(quest);
+}
+
+function runQuestPhase(quest: Quest, strategy: Strategy): void {
   const engine = quest.engine;
-  engine.policy = policy;
+  engine.policy = new QuestPolicy(strategy, quest.questCopies);
   const remaining = args.actions === undefined ? undefined : args.actions - engine.actionsTaken;
   if (remaining !== undefined && remaining <= 0) return;
-  print(`Questing (${policy.mode})`, "purple");
+  print(`Questing (${strategy})`, "purple");
   try {
     engine.run(remaining);
   } finally {
     engine.propertyManager.resetAll();
+    if (quest.path.finished()) markRunFinished();
   }
 }
 
@@ -121,7 +203,7 @@ function failUnfinishedQuest(quest: Quest): never {
 function printState(state: DayState): void {
   const modeText = {
     flexible: `quick quest progress only (quest is due on day ${args.finishday})`,
-    due: "finish the quest, then farm",
+    due: "quick quest progress, then finish the quest when the turns run short",
     complete: "farm only",
   }[state.mode];
   print(`split: day ${state.day} of run, ${modeText}.`, "purple");
@@ -132,7 +214,7 @@ function printState(state: DayState): void {
 
 function printQuestPlan(quest: Quest, state: DayState): void {
   if (state.mode === "complete") return;
-  const policy = new QuestPolicy(state.mode, quest.questCopies);
+  const policy = new QuestPolicy("quick", quest.questCopies);
   if (state.mode === "flexible") {
     const budget = args.questturns < 0 ? "unlimited" : `${policy.budgetRemaining()}`;
     print(`Quest turn budget remaining today: ${budget}`);
@@ -140,6 +222,32 @@ function printQuestPlan(quest: Quest, state: DayState): void {
 
   const engine = quest.engine;
   engine.updatePlan();
+  const history = readHistory();
+  const estimates = estimateTasks(engine.tasks);
+  const estimated = estimates.reduce((total, estimate) => total + estimate.turns, 0);
+  const basis =
+    history.runs > 0 ? `from ${history.runs} previous run(s)` : "no history yet; rough default";
+  print(
+    `Estimated quest turns left: ${estimated.toFixed(0)} (${basis}); reserving ${questTurnsReserve(
+      engine.tasks,
+    )}.`,
+  );
+  if (state.mode === "due") {
+    print(
+      `Adventures that can be farmed before finishing the quest: ${Math.max(
+        0,
+        turnsUntilDeadline(quest),
+      )} (before garbo's diet).`,
+    );
+  }
+  const estimateByTask = new Map(estimates.map((estimate) => [estimate.task.name, estimate.turns]));
+
+  if (args.routewanderers) {
+    const zones = questZones(quest.engine);
+    const zoneText = zones.map((zone) => `${zone.location} (${zone.delay})`).join(", ");
+    print(`Quest zones garbo may route wanderers into: ${zoneText || "none"}`);
+  }
+
   const allocations = allocateResources(engine.tasks);
   for (const task of engine.tasks) {
     if (task.completed()) continue;
@@ -150,8 +258,9 @@ function printQuestPlan(quest: Quest, state: DayState): void {
         ? task
         : merge(resources?.delta ? merge(task, resources.delta) : task, allocation);
     const admission = policy.preadmit(allocated);
-    const name = getTaggedName(allocated);
-    if (admission === undefined) print(`${name}: deferred`, "gray");
+    const turns = estimateByTask.get(task.name);
+    const name = `${getTaggedName(allocated)}${turns ? ` [~${turns.toFixed(1)} turns]` : ""}`;
+    if (admission === undefined) print(`${name}: waiting`, "gray");
     else print(`${name}: allowed (${admission})`);
   }
 }

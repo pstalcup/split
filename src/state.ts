@@ -1,5 +1,6 @@
 import { inCasual, myDaycount } from "kolmafia";
 import { get } from "libram";
+
 import { args } from "./args";
 
 /**
@@ -7,7 +8,9 @@ import { args } from "./args";
  *
  * - "flexible": a day before the finish day. Quest tasks run only when they are
  *   quick (see {@link QuestPolicy}); the remaining turns are farmed.
- * - "due": the finish day (or later). The quest is completed before farming.
+ * - "due": the finish day (or later). Quest tasks still run only when quick,
+ *   until the adventures left are only enough to finish the quest (see
+ *   {@link questTurnsReserve}); then the quest is finished, whatever it costs.
  * - "complete": the quest is done; only farm.
  */
 export type QuestMode = "flexible" | "due" | "complete";
@@ -33,6 +36,6 @@ export function getDayState(questFinished: () => boolean): DayState {
     inRun,
     day,
     mode,
-    ascendAfterFarming: args.garboascend && mode !== "flexible" && day >= args.finishday,
+    ascendAfterFarming: args.garboascend && day >= args.finishday,
   };
 }

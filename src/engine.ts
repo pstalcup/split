@@ -3,6 +3,8 @@ import { $effect, have } from "libram";
 import { ActiveTask, Engine } from "loopstar/engine/engine";
 import { Task } from "loopstar/engine/task";
 import { debug } from "loopstar/lib";
+
+import { recordTurns } from "./estimate";
 import { Admission, QuestPolicy } from "./policy";
 
 // Re-planning is expensive, so only skip a few rejected tasks before yielding to farming.
@@ -56,18 +58,20 @@ export class SplitEngine extends Engine {
   pendingTasks(): Task[] {
     this.updatePlan();
     return this.tasks.filter(
-      (task) => !task.completed() && !this.policy?.isDeferred(task) && super.available(task)
+      (task) => !task.completed() && !this.policy?.isDeferred(task) && super.available(task),
     );
   }
 
   override execute(task: ActiveTask): void {
-    const admission = this.admissions.get(task.name) ?? "due";
+    const admission = this.admissions.get(task.name) ?? "finish";
     const before = myTurncount();
     try {
       super.execute(task);
     } finally {
       this.actionsTaken++;
-      this.policy?.record(admission, myTurncount() - before);
+      const turns = myTurncount() - before;
+      this.policy?.record(admission, turns);
+      recordTurns(task.name, turns);
     }
   }
 
