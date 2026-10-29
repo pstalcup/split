@@ -6,6 +6,7 @@ import { loadEngine } from "loopstar/paths/all";
 import { CasualInfo } from "loopstar/paths/casual/info";
 import { args } from "./args";
 import { SplitEngine } from "./engine";
+import { startTracking } from "./estimate";
 import { patchLoopstarResources } from "./patches";
 import { getQuestCopies } from "./policy";
 
@@ -49,6 +50,7 @@ export type Quest = {
  * own main() does for the casual path.
  */
 export function loadQuest(): Quest {
+  startTracking();
   Args.fill(loopstarArgs, args.loopstarargs);
   const path = new SplitCasualInfo();
   const extraArgs = path.args();

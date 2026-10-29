@@ -193,10 +193,10 @@ export class GarboSession {
   }
 
   /**
-   * Diet, daily setup, free fights and copy target fights.
-   * Garbo does these all at once, before any barf turns.
+   * Diet (and garbo's cockroach prep, which has to happen around it).
+   * After this, the day's adventures are known.
    */
-  setup(): void {
+  diet(): void {
     if (globalOptions.target === $monster`cockroach` && !globalOptions.simdiet) {
       if (!globalOptions.nodiet) nonOrganAdventures();
       runGarboQuests([CockroachSetup]);
@@ -208,7 +208,13 @@ export class GarboSession {
 
     if (!globalOptions.nodiet) runDiet();
     else nonOrganAdventures();
+  }
 
+  /**
+   * Daily setup, free fights and copy target fights.
+   * Garbo does these all at once, before any barf turns.
+   */
+  dailies(): void {
     dailySetup();
 
     const preventEquip = $items`broken champagne bottle, Spooky Putty snake, Spooky Putty mitre, Spooky Putty leotard, Spooky Putty ball, papier-mitre, papier-mâchéte, papier-mâchine gun, papier-masque, papier-mâchuridars, smoke ball, stinky fannypack, dice-shaped backpack, Amulet of Perpetual Darkness`;

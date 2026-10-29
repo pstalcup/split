@@ -4,7 +4,6 @@ import { hasDelay, Task } from "loopstar/engine/task";
 import { ActiveTask } from "loopstar/engine/engine";
 import { args, matchesTask, splitList } from "./args";
 import { parseQuickResources, quickResourcesFor } from "./quick";
-import { QuestMode } from "./state";
 import { allowedWandererReady, farmingCopyDue } from "./wanderers";
 
 const QUEST_TURNS_PREF = "_split_questTurns";
@@ -13,18 +12,24 @@ const QUEST_TURNS_PREF = "_split_questTurns";
  * Why a quest task was allowed to run.
  * Only "budget" tasks count against the questturns budget.
  */
-export type Admission = "due" | "free" | "always" | "quick" | "resource" | "wanderer" | "budget";
+export type Admission = "finish" | "free" | "always" | "quick" | "resource" | "wanderer" | "budget";
+
+/**
+ * "quick": only run quest tasks that are quick right now.
+ * "finish": run every quest task, whatever it costs.
+ */
+export type Strategy = "quick" | "finish";
 
 /**
  * Decides which loopstar tasks may run in the current session.
  *
- * When the quest is due, everything loopstar wants to do is allowed. Before
- * the finish day, a task runs only if it is quick right now: it costs no
+ * When finishing the quest, everything loopstar wants to do is allowed.
+ * Otherwise a task runs only if it is quick right now: it costs no
  * turns, it is on the always-allowed list, loopstar would use a free run, free
  * kill, yellow ray (etc.) on it, it has an NC force or similar allocated, it
  * burns delay with a free wanderer, or it fits in the questturns budget.
  * Otherwise it waits for resources to recharge later in the day, or for the
- * finish day.
+ * finish day's deadline.
  */
 export class QuestPolicy {
   readonly always = splitList(args.alwaystasks);
@@ -33,11 +38,11 @@ export class QuestPolicy {
   readonly resources = splitList(args.resources);
   readonly wanderers = splitList(args.wanderers);
 
-  readonly mode: QuestMode;
+  readonly strategy: Strategy;
   private readonly questCopies: Set<Monster>;
 
-  constructor(mode: QuestMode, questCopies: Set<Monster>) {
-    this.mode = mode;
+  constructor(strategy: Strategy, questCopies: Set<Monster>) {
+    this.strategy = strategy;
     this.questCopies = questCopies;
   }
 
@@ -55,7 +60,7 @@ export class QuestPolicy {
    * Used to filter the available tasks before loopstar picks one.
    */
   preadmit(task: Task): Admission | undefined {
-    if (this.mode !== "flexible") return "due";
+    if (this.strategy === "finish") return "finish";
     if (this.isDeferred(task)) return undefined;
     if (undelay(task.freeaction)) return "free";
     // A copy set up by garbo is about to show up; it must be fought while farming
@@ -84,7 +89,7 @@ export class QuestPolicy {
    * if the wanderer did not show up, the turn is charged to the budget.
    */
   record(admission: Admission, turnsSpent: number): void {
-    if (this.mode !== "flexible" || turnsSpent <= 0) return;
+    if (this.strategy !== "quick" || turnsSpent <= 0) return;
     if (admission === "budget" || admission === "wanderer") {
       set(QUEST_TURNS_PREF, this.budgetUsed() + turnsSpent);
     }

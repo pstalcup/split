@@ -19,7 +19,7 @@ export function planFarmChunk(
   policy: QuestPolicy | undefined,
   engine: SplitEngine | undefined
 ): number | undefined {
-  if (!args.interleave || !policy || policy.mode !== "flexible" || !engine) return undefined;
+  if (!args.interleave || !policy || policy.strategy !== "quick" || !engine) return undefined;
   if (myAdventures() <= 0) return undefined;
 
   const pending = engine.pendingTasks();

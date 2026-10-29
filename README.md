@@ -28,8 +28,22 @@ each quest task on whichever day the resources make it quick:
   Everything else waits, and garbo farms. Tasks that are waiting get picked up again later in the
   day when their resources recharge, or on the finish day.
 
-- **On the finish day** the quest runs to completion first, with the day's fresh resources. Then
-  garbo farms the remaining turns, in ascend mode.
+- **On the finish day** the same happens (quick progress, farming in between, in garbo's ascend
+  mode) until the turns run short. Before every chunk of farming, split checks the adventures left
+  against a reserve: the estimated quest turns left times `finishmargin`, plus `finishbuffer`.
+  Farming stops when it reaches that reserve. The quest is then finished at whatever turn cost,
+  and garbo farms whatever is left.
+
+### Estimating the quest turns left
+
+Every turn a quest task spends is recorded for the current run. When a run is finished, its
+per-task totals are added to `split_history_<name>.json` in KoLmafia's data directory, and later
+estimates use each task's average turns per run. A task that has already spent some turns this
+run counts only its remaining expected turns, and never less than its remaining delay. Until one
+run is in the history, each unfinished task that adventures is estimated at one turn plus its
+remaining delay, which is rough; `finishmargin` and `finishbuffer` cover the difference.
+`split status` prints the estimate per task, the reserve, and how many adventures can still be
+farmed before finishing.
 
 ### Wanderers in quest zones
 
@@ -61,13 +75,16 @@ ready for a waiting quest task, hands it to the quest, and resumes farming. With
 
 Each day (each `split` invocation):
 
-1. **Quest phase.** Loopstar's engine runs under a `QuestPolicy`: the whole quest on the finish day,
-   only quick tasks before it. This happens before garbo's free fights, so the quest gets first
-   use of the day's free runs and free kills (garbo itself only spends free kills on Robortender
-   fights, and free runs on low-value item fights).
-2. **Garbo setup.** garbo's diet, daily setup, free fights and copy target fights.
-3. **Barf farming in chunks**, with a quest phase between chunks whenever a resource the quest is
-   waiting for becomes ready (before the finish day only).
+1. **Quick quest phase.** Loopstar's engine runs under a `QuestPolicy` that admits only quick tasks.
+   This happens before garbo's free fights, so the quest gets first use of the day's free runs and
+   free kills (garbo itself only spends free kills on Robortender fights, and free runs on
+   low-value item fights).
+2. **Garbo's diet.** On the finish day, if the adventures after dieting are already only enough
+   for the quest, the quest is finished now, before garbo's copy target fights spend turns.
+3. **Garbo's dailies.** Daily setup, free fights and copy target fights.
+4. **Barf farming in chunks**, with a quick quest phase between chunks whenever a resource the
+   quest is waiting for becomes ready. On the finish day, no chunk goes past the reserve. Once
+   the reserve is reached, the quest is finished, whatever it costs, and the rest is farmed.
 
 Both scripts are vendored as git submodules and imported directly:
 
@@ -77,19 +94,20 @@ Both scripts are vendored as git submodules and imported directly:
   port of garbo's `main()`, split into phases (setup, farm a chunk, finish). When updating the
   vendored garbo, diff its `src/index.ts` `main()` against that file.
 
-| File                     | Purpose                                                          |
-| ------------------------ | ---------------------------------------------------------------- |
-| `src/main.ts`            | Entry point; schedules quest phases and farming for the day      |
-| `src/state.ts`           | Which day of the run it is, and whether the quest is due         |
-| `src/policy.ts`          | Which quest tasks may run right now (`QuestPolicy`)              |
-| `src/quick.ts`           | Which quick resources loopstar would use on a task               |
-| `src/engine.ts`          | Loopstar's engine, restricted by the policy                      |
-| `src/quest.ts`           | Loads loopstar's casual path with split's changes                |
-| `src/farm/garbo.ts`      | garbo's farming day, split into resumable phases                 |
-| `src/farm/plan.ts`       | How many turns to farm before the quest's next resource is ready |
-| `src/wanderers.ts`       | Predicts when free wanderers will be guaranteed                  |
-| `src/farm/questZones.ts` | Offers quest delay zones to garbo-lib's wanderer planner         |
-| `src/patches.ts`         | Keeps loopstar from using garbo's copies as delay burners        |
+| File                     | Purpose                                                            |
+| ------------------------ | ------------------------------------------------------------------ |
+| `src/main.ts`            | Entry point; schedules quest phases and farming for the day        |
+| `src/state.ts`           | Which day of the run it is, and whether the quest is due           |
+| `src/estimate.ts`        | Estimates the quest turns left, from the turn history of past runs |
+| `src/policy.ts`          | Which quest tasks may run right now (`QuestPolicy`)                |
+| `src/quick.ts`           | Which quick resources loopstar would use on a task                 |
+| `src/engine.ts`          | Loopstar's engine, restricted by the policy                        |
+| `src/quest.ts`           | Loads loopstar's casual path with split's changes                  |
+| `src/farm/garbo.ts`      | garbo's farming day, split into resumable phases                   |
+| `src/farm/plan.ts`       | How many turns to farm before the quest's next resource is ready   |
+| `src/wanderers.ts`       | Predicts when free wanderers will be guaranteed                    |
+| `src/farm/questZones.ts` | Offers quest delay zones to garbo-lib's wanderer planner           |
+| `src/patches.ts`         | Keeps loopstar from using garbo's copies as delay burners          |
 
 ## Setup
 
@@ -140,30 +158,32 @@ Loopstar's own settings (`loopstar_*`, e.g. `loopstar_stomach`) and garbo's sett
 `valueOfAdventure`) still apply. Extra arguments can be passed with `loopstarargs="..."` and
 `garboargs="..."`.
 
-| Option           | Default                               | Meaning                                                              |
-| ---------------- | ------------------------------------- | -------------------------------------------------------------------- |
-| `finishday`      | 2                                     | Day of the run by which the quest must be finished                   |
-| `quick`          | freerun,freekill,yellowray,forceitems | Combat resources that make a quest task quick enough to run early    |
-| `resources`      | NCForce,Lucky                         | Loopstar allocations that may be spent before the finish day         |
-| `wanderers`      | Kramco,Voted,Cursed Magnifying Glass  | Free wanderers that may burn quest delay before the finish day       |
-| `alwaystasks`    | opening, leveling, diet, Friar, Organ | Tasks/quests that always run before the finish day                   |
-| `defertasks`     | (none)                                | Tasks/quests that never run before the finish day                    |
-| `questturns`     | 0                                     | Turns other quest tasks may spend per day before the finish day      |
-| `routewanderers` | true                                  | Let garbo route its wanderers, copies and backups into quest zones   |
-| `routetypes`     | wanderer,backup                       | garbo-lib fight types that may be routed into quest zones            |
-| `routevalue`     | 1                                     | Value of one turn of quest delay, as a multiple of valueOfAdventure  |
-| `interleave`     | true                                  | Pause farming when a resource the quest is waiting for is ready      |
-| `minchunk`       | 3                                     | Minimum turns to farm between quest interruptions                    |
-| `farm`           | true                                  | Farm at all                                                          |
-| `garboascend`    | true                                  | Farm in garbo's ascend mode once the quest is done on the finish day |
-| `day2diet`       | true                                  | Let loopstar's partial diet also run on later days of the run        |
+| Option           | Default                               | Meaning                                                                  |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------------ |
+| `finishday`      | 2                                     | Day of the run by which the quest must be finished                       |
+| `quick`          | freerun,freekill,yellowray,forceitems | Combat resources that make a quest task quick enough to run early        |
+| `resources`      | NCForce,Lucky                         | Loopstar allocations that may be spent before the finish day             |
+| `wanderers`      | Kramco,Voted,Cursed Magnifying Glass  | Free wanderers that may burn quest delay before the finish day           |
+| `alwaystasks`    | opening, leveling, diet, Friar, Organ | Tasks/quests that always run before the finish day                       |
+| `defertasks`     | (none)                                | Tasks/quests that never run before the finish day                        |
+| `finishmargin`   | 1.25                                  | Multiplier on the estimated quest turns left, for the finish-day reserve |
+| `finishbuffer`   | 15                                    | Extra turns added to the finish-day reserve                              |
+| `questturns`     | 0                                     | Turns other quest tasks may spend per day before the finish day          |
+| `routewanderers` | true                                  | Let garbo route its wanderers, copies and backups into quest zones       |
+| `routetypes`     | wanderer,backup                       | garbo-lib fight types that may be routed into quest zones                |
+| `routevalue`     | 1                                     | Value of one turn of quest delay, as a multiple of valueOfAdventure      |
+| `interleave`     | true                                  | Pause farming when a resource the quest is waiting for is ready          |
+| `minchunk`       | 3                                     | Minimum turns to farm between quest interruptions                        |
+| `farm`           | true                                  | Farm at all                                                              |
+| `garboascend`    | true                                  | Farm in garbo's ascend mode on the finish day                            |
+| `day2diet`       | true                                  | Let loopstar's partial diet also run on later days of the run            |
 
 ## Status
 
 This builds, but has not yet been run in-game. Things to watch for on the first runs:
 
-- Day 2 adventures: if day 1 leaves a lot of turn-heavy quest work, day 2 might not have enough
-  adventures before garbo's diet. Raise `loopstar_stomach` / `loopstar_liver`, or `questturns`.
+- The first runs have no turn history, so the reserve is rough. Check `split status` on day 2 and
+  adjust `finishmargin` / `finishbuffer` if the reserve looks too small or too large.
 - Property handoffs between garbo's settings and loopstar's engine during interleaved phases.
 - Quest zones that need equipment to enter: only the Palindome's talisman is handled so far
   (`REQUIRED_EQUIPMENT` in `src/farm/questZones.ts`).
