@@ -2,67 +2,91 @@
 
 A KoLmafia script that combines [loopstar](https://github.com/Kasekopf/loopstar) (casual path) and
 [garbage-collector](https://github.com/loathers/garbage-collector) into one script, so that the
-quest and the farming for a casual run can be scheduled together, across the days of the run.
+quest and the farming for a casual run are scheduled together, across the two days of the run.
 
 ## Why
 
-The usual loop finishes the casual run on day 1 and spends day 2 farming. That spends day 1's
-daily resources on the quest, and day 2's daily resources on farming. But many daily resources
-(free runs, noncombat forces, some free wanderers) are worth much more to the quest than to garbo.
+The usual loop finishes the casual run on day 1 and spends day 2 farming. But many daily resources
+(free runs, free kills, yellow rays, noncombat forces, some free wanderers) are worth much more to
+the quest than to garbo, and day 2's copies of them mostly go to waste.
 
-`split` instead treats the quest as **due on day 2** (configurable via `finishday`):
+`split` requires the primary quests to be finished **by the end of day 2** (`finishday`), and does
+each quest task on whichever day the resources make it quick:
 
-- **Before the finish day** the quest only makes _cheap_ progress, and garbo farms everything else.
-  A quest task is cheap if it:
-  - is a free action (costs no turns),
-  - is on the `alwaystasks` list (by default: the opening/leveling tasks, the diet, Friars, and the
-    steel organ, which garbo benefits from),
-  - is enabled by a daily resource on the `resources` list (by default `NCForce` and `Lucky`),
-  - burns quest delay with a free wanderer from the `wanderers` list (Kramco, voting, cursed
-    magnifying glass), or
-  - fits in the `questturns` budget (default 0).
+- **Before the finish day**, a quest task runs only when it is quick right now:
+
+  - it is a free action (costs no turns),
+  - loopstar would use a **quick resource** on it that is currently available: a free run (for
+    tasks that run away from unwanted monsters), a free kill, a yellow ray or an item-forcing
+    resource (the `quick` option; banishes can be added too),
+  - it has a daily resource like an NC force or Lucky! allocated (the `resources` option),
+  - it burns quest delay with a free wanderer (Kramco, voting, cursed magnifying glass),
+  - it is on the `alwaystasks` list (by default: the opening and leveling tasks, the diet, Friars,
+    and the steel organ, which garbo benefits from), or
+  - it fits in the `questturns` budget (default 0).
+
+  Everything else waits, and garbo farms. Tasks that are waiting get picked up again later in the
+  day when their resources recharge, or on the finish day.
+
 - **On the finish day** the quest runs to completion first, with the day's fresh resources. Then
-  garbo farms the remaining turns, in `ascend` mode.
+  garbo farms the remaining turns, in ascend mode.
 
 ### Interleaving
 
-Before the finish day, garbo does not run in a single invocation. When quest delay remains, garbo
-stops (`garbo turns=N`) just as the next free wanderer becomes guaranteed. That wanderer then burns a
-turn of quest delay instead of being fought in Barf Mountain, and garbo resumes. Copies that garbo
-sets up (e.g. a digitized copy target) are never routed into quest zones, and the quest never
-spends a turn while one is due. Use `interleave=false` to farm in one invocation, or raise `minchunk`
-to restart garbo less often.
+garbo runs in-process, so farming can pause at any turn without restarting garbo. Before the
+finish day, split farms until the next resource the quest is waiting for becomes ready: a free
+wanderer that can burn quest delay, or a cooldown-based free run (spring shoes, cosmic bowling
+ball). Then it hands that resource to the quest and resumes farming.
+
+Copies that garbo sets up (e.g. a digitized copy target) are never routed into quest zones, and
+the quest never spends a turn while one is due.
 
 ## How it works
 
-- `vendor/loopstar` is loopstar's source, pinned as a git submodule. `split` loads loopstar's
-  casual path in-process and wraps its engine (`SplitEngine`) with a `QuestPolicy` that admits or
-  defers each task. Loopstar's routing, resource allocation and combat logic are unchanged.
-- garbo is run through the CLI (`garbo ...`), using your installed copy, so garbo stays up to date
-  independently of this script.
-- `split` builds its own `split_choice.js` from loopstar's choice script, so it neither requires nor
-  conflicts with an installed loopstar.
+Each day (each `split` invocation):
 
-| File               | Purpose                                                     |
-| ------------------ | ----------------------------------------------------------- |
-| `src/main.ts`      | Entry point; runs quest phases and garbo phases for the day |
-| `src/state.ts`     | Which day of the run it is, and whether the quest is due    |
-| `src/policy.ts`    | Which quest tasks may run today (`QuestPolicy`)             |
-| `src/engine.ts`    | Loopstar's engine, restricted by the policy                 |
-| `src/quest.ts`     | Loads loopstar's casual path with split's changes           |
-| `src/farm.ts`      | Runs garbo, and decides how long each garbo chunk should be |
-| `src/wanderers.ts` | Predicts when free wanderers will be guaranteed             |
-| `src/patches.ts`   | Keeps loopstar from using garbo's copies as delay burners   |
+1. **Quest phase.** Loopstar's engine runs under a `QuestPolicy`: the whole quest on the finish day,
+   only quick tasks before it. This happens before garbo's free fights, so the quest gets first
+   use of the day's free runs and free kills (garbo itself only spends free kills on Robortender
+   fights, and free runs on low-value item fights).
+2. **Garbo setup.** garbo's diet, daily setup, free fights and copy target fights.
+3. **Barf farming in chunks**, with a quest phase between chunks whenever a resource the quest is
+   waiting for becomes ready (before the finish day only).
+
+Both scripts are vendored as git submodules and imported directly:
+
+- `vendor/loopstar`: split loads loopstar's casual path and wraps its engine (`SplitEngine`) with
+  the policy. Loopstar's routing, resource allocation and combat logic are unchanged.
+- `vendor/garbage-collector`: split runs garbo's own tasks and functions. `src/farm/garbo.ts` is a
+  port of garbo's `main()`, split into phases (setup, farm a chunk, finish). When updating the
+  vendored garbo, diff its `src/index.ts` `main()` against that file.
+
+| File                | Purpose                                                          |
+| ------------------- | ---------------------------------------------------------------- |
+| `src/main.ts`       | Entry point; schedules quest phases and farming for the day      |
+| `src/state.ts`      | Which day of the run it is, and whether the quest is due         |
+| `src/policy.ts`     | Which quest tasks may run right now (`QuestPolicy`)              |
+| `src/quick.ts`      | Which quick resources loopstar would use on a task               |
+| `src/engine.ts`     | Loopstar's engine, restricted by the policy                      |
+| `src/quest.ts`      | Loads loopstar's casual path with split's changes                |
+| `src/farm/garbo.ts` | garbo's farming day, split into resumable phases                 |
+| `src/farm/plan.ts`  | How many turns to farm before the quest's next resource is ready |
+| `src/wanderers.ts`  | Predicts when free wanderers will be guaranteed                  |
+| `src/patches.ts`    | Keeps loopstar from using garbo's copies as delay burners        |
 
 ## Setup
 
-Loopstar is pulled in as a submodule. In a fresh clone:
+Both upstream scripts are pulled in as submodules. In a fresh clone:
 
 ```bash
 git submodule add https://github.com/Kasekopf/loopstar.git vendor/loopstar
 ```
 
-(or, once the submodule is committed, `git submodule update --init`). Then:
+```bash
+git submodule add https://github.com/loathers/garbage-collector.git vendor/garbage-collector
+```
+
+(or, once the submodules are committed, `git submodule update --init`). Then:
 
 ```bash
 npm install
@@ -72,8 +96,12 @@ npm install
 npm run build
 ```
 
-Copy (or symlink) `dist/KoLmafia/scripts/split/` into your KoLmafia `scripts` directory. garbo must
-also be installed (`git checkout loathers/garbage-collector release`).
+Copy (or symlink) `dist/KoLmafia/scripts/split/` into your KoLmafia `scripts` directory.
+
+garbo must also be installed normally (`git checkout loathers/garbage-collector release`): split
+uses its data files (`garbo_item_lists.json`), its choice script (`garbo_choice.js`) and its
+dependencies (e.g. `mallcheck.js`). Keep the installed garbo and the vendored one on the same
+version.
 
 `npm run check` typechecks `src/`. Upstream loopstar has a few type errors of its own; those are
 reported but do not fail the check.
@@ -86,34 +114,34 @@ Ascend into a casual run (see loopstar's README for recommendations), then each 
 split
 ```
 
-`split status` prints the day plan and whether each remaining quest task is allowed or deferred
-today. `split help` lists all options. Options can also be set permanently, e.g.
+`split status` prints the day plan and why each remaining quest task is allowed right now, or that
+it is waiting. `split help` lists all options. Options can also be set permanently, e.g.
 `set split_questturns=20`.
 
-Loopstar's own settings (`loopstar_*`, e.g. `loopstar_stomach`) still apply; extra loopstar
-arguments can be passed with `loopstarargs="..."`. Extra garbo arguments can be passed with
+Loopstar's own settings (`loopstar_*`, e.g. `loopstar_stomach`) and garbo's settings (`garbo_*`,
+`valueOfAdventure`) still apply. Extra arguments can be passed with `loopstarargs="..."` and
 `garboargs="..."`.
 
-| Option        | Default                               | Meaning                                                             |
-| ------------- | ------------------------------------- | ------------------------------------------------------------------- |
-| `finishday`   | 2                                     | Day of the run on which the quest must be finished                  |
-| `questturns`  | 0                                     | Turns ordinary quest tasks may spend per day before the finish day  |
-| `alwaystasks` | opening, leveling, diet, Friar, Organ | Tasks/quests that always run before the finish day                  |
-| `defertasks`  | Tower                                 | Tasks/quests that never run before the finish day                   |
-| `resources`   | NCForce,Lucky                         | Loopstar allocations that may be spent before the finish day        |
-| `wanderers`   | Kramco,Voted,Cursed Magnifying Glass  | Free wanderers that may burn quest delay before the finish day      |
-| `interleave`  | true                                  | Stop garbo early so free wanderers can burn quest delay             |
-| `minchunk`    | 10                                    | Minimum turns per garbo invocation when interleaving                |
-| `farm`        | true                                  | Run garbo at all                                                    |
-| `garboascend` | true                                  | Run garbo in `ascend` mode once the quest is done on the finish day |
-| `day2diet`    | true                                  | Let loopstar's partial diet also run on later days of the run       |
+| Option        | Default                               | Meaning                                                              |
+| ------------- | ------------------------------------- | -------------------------------------------------------------------- |
+| `finishday`   | 2                                     | Day of the run by which the quest must be finished                   |
+| `quick`       | freerun,freekill,yellowray,forceitems | Combat resources that make a quest task quick enough to run early    |
+| `resources`   | NCForce,Lucky                         | Loopstar allocations that may be spent before the finish day         |
+| `wanderers`   | Kramco,Voted,Cursed Magnifying Glass  | Free wanderers that may burn quest delay before the finish day       |
+| `alwaystasks` | opening, leveling, diet, Friar, Organ | Tasks/quests that always run before the finish day                   |
+| `defertasks`  | (none)                                | Tasks/quests that never run before the finish day                    |
+| `questturns`  | 0                                     | Turns other quest tasks may spend per day before the finish day      |
+| `interleave`  | true                                  | Pause farming when a resource the quest is waiting for is ready      |
+| `minchunk`    | 3                                     | Minimum turns to farm between quest interruptions                    |
+| `farm`        | true                                  | Farm at all                                                          |
+| `garboascend` | true                                  | Farm in garbo's ascend mode once the quest is done on the finish day |
+| `day2diet`    | true                                  | Let loopstar's partial diet also run on later days of the run        |
 
 ## Status
 
-This is a first version. It builds, but has not yet been run in-game. Things to watch for on the
-first runs:
+This builds, but has not yet been run in-game. Things to watch for on the first runs:
 
-- garbo running in-run before level 13 on day 1 (the always-allowed leveling tasks should get there
-  first, and split sets `garbo_skipAscensionCheck` while garbo runs).
-- How many garbo restarts interleaving causes, and whether `minchunk` should be higher.
-- Whether the default `alwaystasks`, `resources` and `questturns` give the right day 1 / day 2 split.
+- Day 2 adventures: if day 1 leaves a lot of turn-heavy quest work, day 2 might not have enough
+  adventures before garbo's diet. Raise `loopstar_stomach` / `loopstar_liver`, or `questturns`.
+- Property handoffs between garbo's settings and loopstar's engine during interleaved phases.
+- Whether the default `quick`, `alwaystasks` and `questturns` give the right day 1 / day 2 split.

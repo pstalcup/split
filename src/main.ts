@@ -4,13 +4,14 @@ import { get, sinceKolmafiaRevision, undelay } from "libram";
 import { allocateResources } from "loopstar/engine/allocation";
 import { getTaggedName, merge } from "loopstar/engine/task";
 import { args } from "./args";
-import { planFarmChunk, runGarbo } from "./farm";
+import { canFarm, GarboSession, loadGarboOptions } from "./farm/garbo";
+import { planFarmChunk } from "./farm/plan";
 import { QuestPolicy } from "./policy";
 import { loadQuest, Quest } from "./quest";
 import { DayState, getDayState } from "./state";
 
-// Each round is one quest phase followed by one garbo invocation.
-const MAX_ROUNDS = 50;
+// Each round is one chunk of farming followed by one quest phase.
+const MAX_ROUNDS = 100;
 
 export function main(command = ""): void {
   sinceKolmafiaRevision(28726);
@@ -41,26 +42,48 @@ function currentState(quest: Quest | undefined): DayState {
 }
 
 function runDay(quest: Quest | undefined): void {
-  for (let round = 0; round < MAX_ROUNDS; round++) {
-    let policy: QuestPolicy | undefined = undefined;
-    const questState = currentState(quest);
-    if (quest && questState.mode !== "complete") {
-      policy = new QuestPolicy(questState.mode, quest.questCopies);
-      runQuestPhase(quest, policy);
-      if (actionsExhausted(quest)) {
-        print(`Stopping after ${quest.engine.actionsTaken} quest actions.`, "purple");
-        return;
-      }
-      if (currentState(quest).mode === "due") failUnfinishedQuest(quest);
+  // Quest first. On the finish day this completes the quest. Earlier, it makes
+  // whatever quick progress the day's fresh resources allow, before garbo's
+  // free fights compete for them.
+  const questState = currentState(quest);
+  if (quest && questState.mode !== "complete") {
+    runQuestPhase(quest, new QuestPolicy(questState.mode, quest.questCopies));
+    if (actionsExhausted(quest)) {
+      print(`Stopping after ${quest.engine.actionsTaken} quest actions.`, "purple");
+      return;
     }
-
-    if (!args.farm) return;
-    const farmState = currentState(quest);
-    // On the last round, farm everything that is left
-    const chunk = round < MAX_ROUNDS - 1 ? planFarmChunk(policy, quest?.engine) : undefined;
-    const spent = runGarbo(chunk, farmState.ascendAfterFarming);
-    if (chunk === undefined || spent === 0 || myAdventures() <= 0) break;
+    if (currentState(quest).mode === "due") failUnfinishedQuest(quest);
   }
+
+  if (!args.farm) return;
+  if (!canFarm()) {
+    print("You are overdrunk without a usable Drunkula's wineglass; not farming.", "red");
+    return;
+  }
+
+  const farmState = currentState(quest);
+  loadGarboOptions(args.garboargs, farmState.ascendAfterFarming);
+  const session = new GarboSession();
+  session.run(() => {
+    session.setup();
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const state = currentState(quest);
+      const policy =
+        quest && state.mode === "flexible"
+          ? new QuestPolicy(state.mode, quest.questCopies)
+          : undefined;
+      // On the last round, farm everything that is left
+      const chunk = round < MAX_ROUNDS - 1 ? planFarmChunk(policy, quest?.engine) : undefined;
+      const spent = session.farm(chunk);
+      if (chunk === undefined || myAdventures() <= 0) break;
+
+      // Give the resource that just became ready to the quest
+      if (!quest || !policy || actionsExhausted(quest)) continue;
+      const actionsBefore = quest.engine.actionsTaken;
+      runQuestPhase(quest, policy);
+      if (spent === 0 && quest.engine.actionsTaken === actionsBefore) break;
+    }
+  });
 
   const finalState = currentState(quest);
   if (finalState.mode === "complete") print("Quest complete and turns farmed.", "purple");
@@ -97,20 +120,20 @@ function failUnfinishedQuest(quest: Quest): never {
 
 function printState(state: DayState): void {
   const modeText = {
-    opportunistic: `cheap progress only (quest is due on day ${args.finishday})`,
+    flexible: `quick quest progress only (quest is due on day ${args.finishday})`,
     due: "finish the quest, then farm",
     complete: "farm only",
   }[state.mode];
   print(`split: day ${state.day} of run, ${modeText}.`, "purple");
   if (args.farm) {
-    print(`Garbo will run${state.ascendAfterFarming ? " in ascend mode" : ""}.`, "purple");
+    print(`Garbo will farm${state.ascendAfterFarming ? " in ascend mode" : ""}.`, "purple");
   }
 }
 
 function printQuestPlan(quest: Quest, state: DayState): void {
   if (state.mode === "complete") return;
   const policy = new QuestPolicy(state.mode, quest.questCopies);
-  if (state.mode === "opportunistic") {
+  if (state.mode === "flexible") {
     const budget = args.questturns < 0 ? "unlimited" : `${policy.budgetRemaining()}`;
     print(`Quest turn budget remaining today: ${budget}`);
   }

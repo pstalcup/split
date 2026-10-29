@@ -1,7 +1,7 @@
 import { myTurncount } from "kolmafia";
 import { $effect, have } from "libram";
 import { ActiveTask, Engine } from "loopstar/engine/engine";
-import { hasDelay, Task } from "loopstar/engine/task";
+import { Task } from "loopstar/engine/task";
 import { debug } from "loopstar/lib";
 import { Admission, QuestPolicy } from "./policy";
 
@@ -50,18 +50,13 @@ export class SplitEngine extends Engine {
   }
 
   /**
-   * True if some quest task with delay remaining could run right now, if the
-   * policy allowed it. Free wanderers can burn this delay instead of turns.
+   * Quest tasks that could run right now if the policy allowed them.
+   * Used to decide which recharging resources are worth pausing farming for.
    */
-  hasDelayWork(): boolean {
-    if (!this.policy) return false;
+  pendingTasks(): Task[] {
     this.updatePlan();
-    return this.tasks.some(
-      (task) =>
-        !task.completed() &&
-        hasDelay(task) > 0 &&
-        !this.policy?.isDeferred(task) &&
-        super.available(task)
+    return this.tasks.filter(
+      (task) => !task.completed() && !this.policy?.isDeferred(task) && super.available(task)
     );
   }
 

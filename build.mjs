@@ -3,11 +3,11 @@ import { existsSync } from "fs";
 import esbuild from "esbuild";
 import babel from "esbuild-plugin-babel";
 
-if (!existsSync("vendor/loopstar/src/main.ts")) {
-  console.error(
-    "vendor/loopstar is missing. Run `git submodule update --init` (see README.md) before building."
-  );
-  process.exit(1);
+for (const vendored of ["vendor/loopstar/src/main.ts", "vendor/garbage-collector/packages/garbo/src/index.ts"]) {
+  if (!existsSync(vendored)) {
+    console.error(`${vendored} is missing. Set up the submodules (see README.md) before building.`);
+    process.exit(1);
+  }
 }
 
 const watch = process.argv.some((arg) => ["--watch", "-w"].includes(arg));
@@ -18,7 +18,7 @@ const context = await esbuild.context({
   platform: "node",
   target: "rhino1.7.14",
   external: ["kolmafia"],
-  // Resolves the "loopstar/*" path alias declared in tsconfig.json
+  // Resolves the "loopstar/*", "garbo/*" and "garbo-lib" path aliases declared in tsconfig.json
   tsconfig: "tsconfig.json",
   define: {
     "process.env.GITHUB_SHA": `"${process.env?.["GITHUB_SHA"] ?? "CustomBuild"}"`,
