@@ -76,17 +76,14 @@ Both scripts are vendored as git submodules and imported directly:
 
 ## Setup
 
-Both upstream scripts are pulled in as submodules. In a fresh clone:
+Both upstream scripts are git submodules under `vendor/`, pinned to the versions split was built
+against. Clone with submodules:
 
 ```bash
-git submodule add https://github.com/Kasekopf/loopstar.git vendor/loopstar
+git clone --recurse-submodules https://github.com/pstalcup/split.git
 ```
 
-```bash
-git submodule add https://github.com/loathers/garbage-collector.git vendor/garbage-collector
-```
-
-(or, once the submodules are committed, `git submodule update --init`). Then:
+(or run `git submodule update --init` in an existing clone). Then:
 
 ```bash
 npm install
@@ -102,6 +99,10 @@ garbo must also be installed normally (`git checkout loathers/garbage-collector 
 uses its data files (`garbo_item_lists.json`), its choice script (`garbo_choice.js`) and its
 dependencies (e.g. `mallcheck.js`). Keep the installed garbo and the vendored one on the same
 version.
+
+To update a vendored script, check out the new commit inside its submodule (e.g.
+`git -C vendor/garbage-collector checkout <commit>`), rebuild, and commit the submodule change. For
+garbo, also port any changes in its `main()` to `src/farm/garbo.ts`.
 
 `npm run check` typechecks `src/`. Upstream loopstar has a few type errors of its own; those are
 reported but do not fail the check.
